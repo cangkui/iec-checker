@@ -6,11 +6,11 @@
 
 (menhir
  (modules parser)
- (flags ("--dump" "--explain")))
+ (flags ("--dump" "--explain" "--unused-tokens" "--unused-precedence-levels")))
  ; (flags ("--dump" "--explain" "--trace")))
 
 (ocamllex
  (modules lexer))
 
 ; Make warnings non-fatal. This is required while parser is WIP.
-(env (dev (flags (:standard -warn-error -A))))
+(env (dev (flags (:standard -w -A -warn-error -A))))

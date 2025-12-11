@@ -3,3 +3,5 @@
  (public_name iec_checker.lib)
  (synopsis "Implementation of the static analysis rules")
  (libraries core iec_checker.core iec_checker.analysis))
+
+(env (dev (flags (:standard -w -A -warn-error -A))))
