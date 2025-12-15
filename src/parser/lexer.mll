@@ -239,27 +239,27 @@ rule initial tokinfo =
 
   (* {{{ ST control statements *)
   (* TODO: Case-insensitive *)
-  | "IF"             { let ti = tokinfo lexbuf in T_IF(ti) }
-  | "THEN"           { let ti = tokinfo lexbuf in T_THEN(ti) }
-  | "ELSIF"          { let ti = tokinfo lexbuf in T_ELSIF(ti) }
-  | "ELSE"           { let ti = tokinfo lexbuf in T_ELSE(ti) }
-  | "END_IF"         { let ti = tokinfo lexbuf in T_END_IF(ti) }
-  | "CASE"           { let ti = tokinfo lexbuf in T_CASE(ti) }
-  | "OF"             { let ti = tokinfo lexbuf in T_OF(ti) }
-  | "END_CASE"       { let ti = tokinfo lexbuf in T_END_CASE(ti) }
-  | "FOR"            { let ti = tokinfo lexbuf in T_FOR(ti) }
-  | "TO"             { let ti = tokinfo lexbuf in T_TO(ti) }
-  | "BY"             { let ti = tokinfo lexbuf in T_BY(ti) }
-  | "DO"             { let ti = tokinfo lexbuf in T_DO(ti) }
-  | "END_FOR"        { let ti = tokinfo lexbuf in T_END_FOR(ti) }
-  | "WHILE"          { let ti = tokinfo lexbuf in T_WHILE(ti) }
-  | "END_WHILE"      { let ti = tokinfo lexbuf in T_END_WHILE(ti) }
-  | "REPEAT"         { let ti = tokinfo lexbuf in T_REPEAT(ti) }
-  | "END_REPEAT"     { let ti = tokinfo lexbuf in T_END_REPEAT(ti) }
-  | "UNTIL"          { let ti = tokinfo lexbuf in T_UNTIL(ti) }
-  | "EXIT"           { let ti = tokinfo lexbuf in T_EXIT(ti) }
-  | "CONTINUE"       { let ti = tokinfo lexbuf in T_CONTINUE(ti) }
-  | "RETURN"         { let ti = tokinfo lexbuf in T_RETURN(ti) }
+  | "IF" | "if"                 { let ti = tokinfo lexbuf in T_IF(ti) }
+  | "THEN" | "then"             { let ti = tokinfo lexbuf in T_THEN(ti) }
+  | "ELSIF" | "elsif"           { let ti = tokinfo lexbuf in T_ELSIF(ti) }
+  | "ELSE" | "else"             { let ti = tokinfo lexbuf in T_ELSE(ti) }
+  | "END_IF" | "end_if"         { let ti = tokinfo lexbuf in T_END_IF(ti) }
+  | "CASE" | "case"             { let ti = tokinfo lexbuf in T_CASE(ti) }
+  | "OF" | "of"                 { let ti = tokinfo lexbuf in T_OF(ti) }
+  | "END_CASE" | "end_case"     { let ti = tokinfo lexbuf in T_END_CASE(ti) }
+  | "FOR" | "for"               { let ti = tokinfo lexbuf in T_FOR(ti) }
+  | "TO" | "to"                 { let ti = tokinfo lexbuf in T_TO(ti) }
+  | "BY" | "by"                 { let ti = tokinfo lexbuf in T_BY(ti) }
+  | "DO" | "do"                 { let ti = tokinfo lexbuf in T_DO(ti) }
+  | "END_FOR" | "end_for"       { let ti = tokinfo lexbuf in T_END_FOR(ti) }
+  | "WHILE" | "while"           { let ti = tokinfo lexbuf in T_WHILE(ti) }
+  | "END_WHILE" | "end_while"   { let ti = tokinfo lexbuf in T_END_WHILE(ti) }
+  | "REPEAT" | "repeat"         { let ti = tokinfo lexbuf in T_REPEAT(ti) }
+  | "END_REPEAT" | "end_repeat" { let ti = tokinfo lexbuf in T_END_REPEAT(ti) }
+  | "UNTIL" | "until"           { let ti = tokinfo lexbuf in T_UNTIL(ti) }
+  | "EXIT" | "exit"             { let ti = tokinfo lexbuf in T_EXIT(ti) }
+  | "CONTINUE" | "continue"     { let ti = tokinfo lexbuf in T_CONTINUE(ti) }
+  | "RETURN" | "return"         { let ti = tokinfo lexbuf in T_RETURN(ti) }
 (* }}} *)
 
   (* {{{ Boolean literals *)
