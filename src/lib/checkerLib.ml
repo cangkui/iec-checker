@@ -24,7 +24,7 @@ let run_all_checks elements envs cfgs quiet =
     List.iter elements ~f:(fun e -> print_element e);
   []
   |> List.append (if Config.check_plcopen_cp1 then Plcopen_cp1.do_check elements else [])
-  |> List.append (if Config.check_plcopen_cp2 then Plcopen_cp2.do_check cfgs else [])
+  |> List.append (if Config.check_plcopen_cp2 then Plcopen_cp2.do_check cfgs elements else [])
   |> List.append (if Config.check_plcopen_cp3 then Plcopen_cp3.do_check elements else [])
   |> List.append (if Config.check_plcopen_cp4 then Plcopen_cp4.do_check elements else [])
   |> List.append (if Config.check_plcopen_cp6 then Plcopen_cp6.do_check elements else [])
