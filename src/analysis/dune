@@ -3,3 +3,5 @@
  (public_name iec_checker.analysis)
  (synopsis "Common semantic checks")
  (libraries core iec_checker.core))
+
+(env (dev (flags (:standard -w -A -warn-error -A))))
