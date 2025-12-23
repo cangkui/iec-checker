@@ -64,6 +64,10 @@
   let mk_var_use_dir dv =
     let var_use = Syntax.VarUse.create_dir dv Syntax.VarUse.Elementary in
     var_use
+  
+  let stmt_list_of_option = function
+    | None -> []
+    | Some l -> l
 %}
 
 (* {{{ Tokens *)
@@ -1340,7 +1344,8 @@ let function_ty :=
   | ~ = derived_type_access; <Syntax.TyDerived>
 
 let func_body :=
-  | ~ = stmt_list; <>
+  | sl_opt = option(stmt_list);
+  { stmt_list_of_option sl_opt }
   (* Allow empty body of function with {} *)
   | T_LBRACE; T_RBRACE; { [] }
 (* }}} *)
@@ -1372,7 +1377,8 @@ let fb_decl :=
   { Syntax.{ id; variables = vds; statements = ss } }
 
 let fb_body :=
-  | ~ = stmt_list; <>
+  | sl_opt = option(stmt_list);
+  { stmt_list_of_option sl_opt }
   (* Allow an empty body of the function block with {} *)
   | T_LBRACE; T_RBRACE; { [] }
 
@@ -1483,10 +1489,12 @@ let prog_decl :=
       | Some v -> v
       | None -> []
     in
-    Syntax.{ is_retain = false;
+    Syntax.{ 
+      is_retain = false;
       name = n;
       variables = vds;
-      statements = ss }
+      statements = ss 
+    }
   }
 
 let prog_type_name :=
@@ -1863,11 +1871,17 @@ let func_call :=
     Syntax.StmFuncCall(ti, f, stmts)
   }
 
+// let stmt_list :=
+//   | s = stmt; option(T_SEMICOLON);
+//   { [s] }
+//   | sl = stmt_list; s = stmt; option(T_SEMICOLON);
+//   { sl @ [s] }
+
 let stmt_list :=
-  | s = stmt; option(T_SEMICOLON);
+  | s = stmt; option(T_SEMICOLON); 
   { [s] }
-  | sl = stmt_list; s = stmt; option(T_SEMICOLON);
-  { sl @ [s] }
+  | s = stmt; option(T_SEMICOLON); sl = stmt_list;
+  { s :: sl }
 
 let stmt :=
   | ~ = assign_stmt; <>
@@ -1975,45 +1989,54 @@ let selection_stmt :=
   | ~ = case_stmt; <>
 
 let if_stmt :=
-  | ti = T_IF; e = expression; T_THEN; ifs = stmt_list; T_END_IF;
+  | ti = T_IF; e = expression; T_THEN; ifs_opt = option(stmt_list); T_END_IF;
   {
     let eti = Syntax.expr_get_ti e in
+    let ifs = stmt_list_of_option ifs_opt in
     Syntax.StmIf(ti, Syntax.StmExpr(eti, e), ifs, [], [])
   }
-  | ti = T_IF; e = expression; T_THEN; ifs = stmt_list; T_ELSE; elses = stmt_list; T_END_IF;
+  | ti = T_IF; e = expression; T_THEN; ifs_opt = option(stmt_list); T_ELSE; elses_opt = option(stmt_list); T_END_IF;
   {
     let eti = Syntax.expr_get_ti e in
+    let ifs = stmt_list_of_option ifs_opt in
+    let elses = stmt_list_of_option elses_opt in
     Syntax.StmIf(ti, Syntax.StmExpr(eti, e), ifs, [], elses)
   }
-  | ti = T_IF; e = expression; T_THEN; ifs = stmt_list; elsifs = if_stmt_elsif_list; T_END_IF;
+  | ti = T_IF; e = expression; T_THEN; ifs_opt = option(stmt_list); elsifs = if_stmt_elsif_list; T_END_IF;
   {
     let eti = Syntax.expr_get_ti e in
+    let ifs = stmt_list_of_option ifs_opt in
     Syntax.StmIf(ti, Syntax.StmExpr(eti, e), ifs, elsifs, [])
   }
-  | ti = T_IF; e = expression; T_THEN; ifs = stmt_list; elsifs = if_stmt_elsif_list; T_ELSE; elses = stmt_list; T_END_IF;
+  | ti = T_IF; e = expression; T_THEN; ifs_opt = option(stmt_list); elsifs = if_stmt_elsif_list; T_ELSE; elses_opt = option(stmt_list); T_END_IF;
   {
     let eti = Syntax.expr_get_ti e in
+    let ifs = stmt_list_of_option ifs_opt in
+    let elses = stmt_list_of_option elses_opt in
     Syntax.StmIf(ti, Syntax.StmExpr(eti, e), ifs, elsifs, elses)
   }
 
 (* Helper rule for if_stmt *)
 let if_stmt_elsif_list :=
-  | ti = T_ELSIF; cond_e = expression; T_THEN; stmts = stmt_list;
+  | ti = T_ELSIF; cond_e = expression; T_THEN; stmts_opt = option(stmt_list);
   {
     let eti = Syntax.expr_get_ti cond_e in
+    let stmts = stmt_list_of_option stmts_opt in
     [Syntax.StmElsif(ti, Syntax.StmExpr(eti, cond_e), stmts)]
   }
-  | elsifs = if_stmt_elsif_list; ti = T_ELSIF; cond_e = expression; T_THEN; stmts = stmt_list;
+  | elsifs = if_stmt_elsif_list; ti = T_ELSIF; cond_e = expression; T_THEN; stmts_opt = option(stmt_list);
   {
     let eti = Syntax.expr_get_ti cond_e in
+    let stmts = stmt_list_of_option stmts_opt in
     let elsif = Syntax.StmElsif(ti, Syntax.StmExpr(eti, cond_e), stmts) in
     elsifs @ [elsif]
   }
 
 let case_stmt :=
-  | ti = T_CASE; e = expression; T_OF; css = list(case_selection); T_ELSE; sl = stmt_list; T_END_CASE;
+  | ti = T_CASE; e = expression; T_OF; css = list(case_selection); T_ELSE; sl_opt = option(stmt_list); T_END_CASE;
   {
     let eti = Syntax.expr_get_ti e in
+    let sl = stmt_list_of_option sl_opt in
     Syntax.StmCase(ti, Syntax.StmExpr(eti, e), css, sl)
   }
   | ti = T_CASE; e = expression; T_OF; css = list(case_selection); T_END_CASE;
@@ -2023,7 +2046,11 @@ let case_stmt :=
   }
 
 let case_selection :=
-  | case = case_list; T_COLON; body = stmt_list; { Syntax.{ case; body } }
+  | case = case_list; T_COLON; body_opt = option(stmt_list); 
+  { 
+    let body = stmt_list_of_option body_opt in
+    Syntax.{ case; body } 
+  }
 
 let case_list :=
   | ~ = separated_list(T_COMMA, case_list_elem); <>
@@ -2048,7 +2075,7 @@ let iteration_stmt :=
   | ~ = T_CONTINUE; <Syntax.StmContinue>
 
 let for_stmt :=
-  | ti = T_FOR; cv = control_variable; T_ASSIGN; fl = for_list; T_DO; sl = stmt_list; T_END_FOR;
+  | ti = T_FOR; cv = control_variable; T_ASSIGN; fl = for_list; T_DO; sl_opt = option(stmt_list); T_END_FOR;
   {
     let (e_start, e_end, e_step) = fl in
     let ctrl_assign_stmt =
@@ -2062,6 +2089,7 @@ let for_stmt :=
       Syntax.range_end = e_end;
       Syntax.range_step = e_step }
     in
+    let sl = stmt_list_of_option sl_opt in
     Syntax.StmFor(ti, ctrl, sl)
   }
 
@@ -2083,16 +2111,18 @@ let for_list :=
   }
 
 let while_stmt :=
-  | ti = T_WHILE; e = expression; T_DO; sl = stmt_list; T_END_WHILE;
+  | ti = T_WHILE; e = expression; T_DO; sl_opt = option(stmt_list); T_END_WHILE;
   {
     let eti = Syntax.expr_get_ti e in
+    let sl = stmt_list_of_option sl_opt in
     Syntax.StmWhile(ti, Syntax.StmExpr(eti, e), sl)
   }
 
 let repeat_stmt :=
-  | ti = T_REPEAT; sl = stmt_list; T_UNTIL; e = expression; T_END_REPEAT;
+  | ti = T_REPEAT; sl_opt = option(stmt_list); T_UNTIL; e = expression; T_END_REPEAT;
   {
     let eti = Syntax.expr_get_ti e in
+    let sl = stmt_list_of_option sl_opt in
     Syntax.StmRepeat(ti, sl, Syntax.StmExpr(eti, e))
   }
 (* }}} *)
