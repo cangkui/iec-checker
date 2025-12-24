@@ -147,7 +147,9 @@
       ]
 }
 
-let common_char_value = ['!' '#' '%' '&' '('-'@' 'A'-'Z' '['-'`' 'a'-'z' '{'-'~']
+(* Allow space, tab and dollar sign inside string literals so sequences like
+  '$T' are accepted as literal characters. Newline remains illegal in strings. *)
+let common_char_value = ['\t' ' ' '!' '#' '$' '%' '&' '('-'@' 'A'-'Z' '['-'`' 'a'-'z' '{'-'~']
 
 let whitespace = ['\r' '\t' ' ']
 
@@ -408,7 +410,17 @@ rule initial tokinfo =
   (* {{{ String literals *)
 and sstring_literal buf ti = parse
   | '"' { Buffer.add_char buf '"'; sstring_literal buf ti lexbuf }
-  | common_char_value+ | '$' '\'' | '$' hex_digit hex_digit
+  | '$' '\''
+  {
+    Buffer.add_string buf (Lexing.lexeme lexbuf);
+    sstring_literal buf ti lexbuf
+  }
+  | '$' hex_digit hex_digit
+  {
+    Buffer.add_string buf (Lexing.lexeme lexbuf);
+    sstring_literal buf ti lexbuf
+  }
+  | common_char_value+
   {
     Buffer.add_string buf (Lexing.lexeme lexbuf);
     sstring_literal buf ti lexbuf
@@ -423,7 +435,17 @@ and sstring_literal buf ti = parse
 
 and dstring_literal buf ti = parse
   | '\'' { Buffer.add_char buf '\''; dstring_literal buf ti lexbuf }
-  | common_char_value+ | '$' '"' | '$' hex_digit hex_digit hex_digit hex_digit
+  | '$' '"'
+  {
+    Buffer.add_string buf (Lexing.lexeme lexbuf);
+    dstring_literal buf ti lexbuf
+  }
+  | '$' hex_digit hex_digit hex_digit hex_digit
+  {
+    Buffer.add_string buf (Lexing.lexeme lexbuf);
+    dstring_literal buf ti lexbuf
+  }
+  | common_char_value+
   {
     Buffer.add_string buf (Lexing.lexeme lexbuf);
     dstring_literal buf ti lexbuf
