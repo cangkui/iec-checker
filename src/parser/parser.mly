@@ -316,6 +316,11 @@ let constant :=
     Syntax.ExprConstant(ti, c)
   }
   (* | ~ = bit_str_literal <Syntax.ExprConstant> *)
+  | c = bit_str_literal;
+  {
+    let ti = Syntax.c_get_ti c in
+    Syntax.ExprConstant(ti, c)
+  }
   | c = bool_literal;
   {
     let ti = Syntax.c_get_ti c in
@@ -402,6 +407,14 @@ let real_literal :=
   { creal_mk (creal_inv (creal_conv_fp vr)) }
 
 (* bit_str_literal: *)
+let bit_str_literal :=
+  | ty = multibits_type_name; T_SHARP; v = unsigned_int; { v }
+  | ty = multibits_type_name; T_SHARP; v = binary_int;   { v }
+  | ty = multibits_type_name; T_SHARP; v = octal_int;    { v }
+  | ty = multibits_type_name; T_SHARP; v = hex_int;      { v }
+  | v = binary_int; { v }
+  | v = octal_int;  { v }
+  | v = hex_int;    { v }
 
 let bool_literal :=
   (* BOOL#<value> rules are implemented in lexer *)
