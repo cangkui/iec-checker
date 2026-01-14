@@ -568,7 +568,7 @@ let dedup_warns_by_msg (warns : Warn.t list) : Warn.t list =
   (* Create a string hash table to record *)
   let seen = String.Hash_set.create () in
   List.filter warns ~f:(fun w ->
-    let k = Printf.sprintf "%s|%s|%d|%d|%s" w.file w.id w.linenr w.column w.msg in
+    let k = Warn.to_string w in
     if Hash_set.mem seen k then
       false
     else (
