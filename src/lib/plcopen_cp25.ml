@@ -6,11 +6,62 @@ module S = Syntax
 
 let types_can_be_casted ty_from ty_to =
   let open S in
+  (* Helper: try to extract elementary type from single element spec *)
+  let single_to_elem = function
+    | S.DTySpecElementary e -> Some e
+    | _ -> None
+  in
+
+  (* Implicit conversion graph based on IEC61131-3 table 11.
+     Edge a -> b means a can be implicitly converted to b. *)
+  let neighbours = function
+    | S.BOOL  -> [S.BYTE]
+    | S.BYTE  -> [S.WORD]
+    | S.WORD  -> [S.DWORD]
+    | S.DWORD -> [S.LWORD]
+    | S.SINT  -> [S.INT]
+    | S.INT   -> [S.DINT; S.REAL]
+    | S.DINT  -> [S.LINT; S.LREAL]
+    | S.LINT  -> []
+    | S.USINT -> [S.UINT; S.INT]
+    | S.UINT  -> [S.UDINT; S.DINT; S.REAL]
+    | S.UDINT -> [S.ULINT; S.LINT; S.LREAL]
+    | S.ULINT -> []
+    | S.REAL  -> [S.LREAL]
+    | S.LREAL -> []
+    | S.TIME  -> [S.LTIME]
+    | S.LTIME -> []
+    | S.DT    -> [S.LDT]
+    | S.LDT   -> []
+    | S.DATE  -> [S.LDATE]
+    | S.LDATE -> []
+    | S.TOD   -> [S.LTOD]
+    | S.LTOD  -> []
+    | S.CHAR n  -> [S.WCHAR n; S.STRING n]
+    | S.WCHAR n -> [S.WSTRING n]
+    | S.STRING n-> [S.WSTRING n]
+    | S.WSTRING _ -> []
+    | _ -> []
+  in
+
+  let rec reachable from visited =
+    if List.exists visited ~f:(fun x -> phys_equal x from) then [] else
+    let visited = from :: visited in
+    let next = neighbours from in
+    next @ (List.concat_map next ~f:(fun n -> reachable n visited))
+  in
+
+  let can_promote rhs lhs =
+    if phys_equal rhs lhs then true
+    else
+      let reach = reachable rhs [] in
+      List.exists reach ~f:(fun x -> phys_equal x lhs)
+  in
+
   match (ty_from, ty_to) with
-  | (DTyDeclSingleElement(se_from_spec,_),DTyDeclSingleElement(se_to_spec,_)) -> begin
-      match (se_from_spec, se_to_spec) with
-      | (DTySpecElementary(REAL|LREAL),DTySpecElementary(SINT|INT|DINT|LINT|USINT|UDINT|ULINT|BOOL|BYTE|WORD|DWORD|LWORD)) -> false
-      | (DTySpecElementary(SINT|INT|DINT|LINT|USINT|UDINT|ULINT|BOOL|BYTE|WORD|DWORD|LWORD),DTySpecElementary(REAL|LREAL)) -> false
+  | (S.DTyDeclSingleElement (se_from,_), S.DTyDeclSingleElement (se_to,_)) -> begin
+      match (single_to_elem se_from, single_to_elem se_to) with
+      | (Some ef, Some et) -> can_promote ef et
       | _ -> true
     end
   | _ -> true
