@@ -31,7 +31,7 @@ let run_all_checks elements envs cfgs quiet =
   |> List.append (if Config.check_plcopen_cp8 then Plcopen_cp8.do_check elements else [])
   |> List.append (if Config.check_plcopen_cp9 then Plcopen_cp9.do_check elements cfgs else [])
   |> List.append (if Config.check_plcopen_cp13 then Plcopen_cp13.do_check elements else [])
-  |> List.append (if Config.check_plcopen_cp25 then Plcopen_cp25.do_check elements envs else [])
+  |> List.append (if Config.check_plcopen_cp25 then Plcopen_cp25.do_check elements else [])
   |> List.append (if Config.check_plcopen_cp28 then Plcopen_cp28.do_check elements else [])
   |> List.append (if Config.check_plcopen_l10 then Plcopen_l10.do_check elements else [])
   |> List.append (if Config.check_plcopen_l17 then Plcopen_l17.do_check elements else [])
