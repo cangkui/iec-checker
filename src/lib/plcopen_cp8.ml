@@ -39,8 +39,9 @@ let is_zero_constant (e : S.expr) : bool =
   | _ -> false
 
 let is_func_return_float (fn: S.Function.t) (params : S.func_param_assign list) : bool =
-  (** Only detect system functions. Self-defined functions are not detected yet. *)
+  (** Only detect system/oscat functions. Self-defined functions / generic type are not detected yet. *)
   let tbl = [
+    (* Some system functions *)
     "LREAL_TO_REAL";
     "REAL_TO_LREAL";
     "LINT_TO_REAL";
@@ -55,7 +56,9 @@ let is_func_return_float (fn: S.Function.t) (params : S.func_param_assign list) 
     "DWORD_TO_LREAL";
     "SQRT"; "LN"; "LOG"; "EXP"; 
     "COS"; "SIN"; "TAN"; 
-    "ASIN"; "ACOS"; "ATAN"; "ATAN2"
+    "ASIN"; "ACOS"; "ATAN"; "ATAN2";
+    (* OSCAT functions *)
+    "ACOSH";"ACOTH";"AGDF";"AIN";"AIR_DENSITY";"AIR_ENTHALPY";"ARRAY_AVG";"ARRAY_GAV";"ARRAY_HAV";"ARRAY_MAX";"ARRAY_MIN";"ARRAY_SDV";"ARRAY_SPR";"ARRAY_SUM";"ARRAY_TREND";"ARRAY_VAR";"ASINH";"ATAN2";"ATANH";"BETA";"BFT_TO_MS";"BYTE_TO_RANGE";"CABS";"CARG";"CAUCHY";"CAUCHYCD";"CIRCLE_A";"CIRCLE_C";"CIRCLE_SEG";"CONE_V";"COSH";"COTH";"CTRL_IN";"C_TO_F";"C_TO_K";"DEAD_BAND";"DEAD_ZONE";"DEG";"DEW_CON";"DEW_RH";"DEW_TEMP";"DW_TO_REAL";"ELLIPSE_A";"ELLIPSE_C";"ERF";"ERFC";"EXP10";"EXPN";"FLOAT_TO_REAL";"FRACT";"F_LIN";"F_LIN2";"F_POLY";"F_POWER";"F_QUAD";"F_TO_C";"F_TO_OM";"GAMMA";"GAUSS";"GAUSSCD";"GDF";"GEO_TO_DEG";"GOLD";"HEAT_INDEX";"HYPOT";"INV";"JD2000";"KMH_TO_MS";"K_TO_C";"LAMBERT_W";"LANGEVIN";"LINEAR_INT";"MAX3";"MID3";"MIN3";"MIX";"MODR";"MS_TO_KMH";"MULTI_IN";"MUL_ADD";"MUX_R2";"MUX_R4";"NEGX";"OFFSET";"OFFSET2";"OM_TO_F";"OVERRIDE";"POLYNOM_INT";"PT_TO_F";"R2_ABS";"R2_ADD";"R2_ADD2";"R2_MUL";"R2_SET";"RAD";"RDM";"REFRACTION";"RES_NI";"RES_NTC";"RES_PT";"RES_SI";"RND";"ROUND";"SCALE";"SCALE_B";"SCALE_B2";"SCALE_B4";"SCALE_B8";"SCALE_D";"SCALE_R";"SCALE_X2";"SCALE_X4";"SCALE_X8";"SDD";"SDD_NH3";"SDT_NH3";"SECOND";"SENSOR_INT";"SIGMOID";"SINC";"SINH";"SPHERE_V";"SQRTN";"STAIR";"TANC";"TANH";"TANK_VOL1";"TANK_VOL2";"TEMP_NI";"TEMP_NTC";"TEMP_PT";"TEMP_SI";"TRIANGLE_A";"V3_ABS";"V3_ANG";"V3_DPRO";"V3_XANG";"V3_YANG";"V3_ZANG";"WATER_CP";"WATER_DENSITY";"WATER_ENTHALPY";"WCT";"WORD_TO_RANGE";"_ARRAY_MEDIAN"
   ] in
   let fn_str = S.Function.get_name fn in
   let fn_up_str = String.uppercase fn_str in
