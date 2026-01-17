@@ -745,7 +745,7 @@ let dedup_warns_by_msg (warns : Warn.t list) : Warn.t list =
 let do_check (elems : S.iec_library_element list) : Warn.t list =
   (* Walk through all expressions/statements in each element and collect warnings.
      Build `var_map` per-POU to avoid cross-POU name collisions and incorrect mappings. *)
-  Printf.printf "Test oscat finding : %s\n" (parse_cast_from_function_name "UTC_TO_LTIME" |> Option.value ~default:"None");
+  (* Printf.printf "Test oscat finding : %s\n" (parse_cast_from_function_name "UTC_TO_LTIME" |> Option.value ~default:"None"); *)
   let warns =
     List.fold elems ~init:[] ~f:(fun acc elem ->
         let var_map = build_var_type_map [elem] in
