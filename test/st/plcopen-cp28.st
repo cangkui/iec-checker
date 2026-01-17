@@ -1,6 +1,7 @@
 PROGRAM demo
     VAR
         x : TIME;
+        y : TIME;
     END_VAR
 
     IF x = T#100MS THEN (* PLCOPEN CP-28 *)
@@ -20,6 +21,14 @@ PROGRAM demo
     END_IF;
 
     IF REAL_TO_INT(x) <> 0 THEN
+      x := x + 1;
+    END_IF;
+
+    IF x >= T#100MS THEN
+      x := x + 1;
+    END_IF;
+
+    IF x = y THEN
       x := x + 1;
     END_IF;
 END_PROGRAM
