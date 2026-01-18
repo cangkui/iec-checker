@@ -28,9 +28,9 @@
     let vv = float_of_string vfp in
     (vv, ti)
 
-  let creal_mk t =
+  let creal_mk ?ty t =
     let (v, ti) = t in
-    Syntax.CReal(ti, v)
+    Syntax.CReal(ti, ty, v)
 
   let ctime_mk fn t =
     let (v, ti) = t in
@@ -38,11 +38,11 @@
     Syntax.CTimeValue(ti, tv)
 
   let c_get_int = function
-    | Syntax.CInteger (_,v) -> Some(v)
+    | Syntax.CInteger (_, _, v) -> Some(v)
     | _ -> None
 
   let c_get_int_exn = function
-    | Syntax.CInteger (_, v) -> v
+    | Syntax.CInteger (_, _, v) -> v
     | _ -> assert false
 
   let mk_global_decl (sym_var : Syntax.SymVar.t) =
@@ -332,60 +332,90 @@ let numeric_literal :=
   | ~ = real_literal; <>
 
 let int_literal :=
-  | int_type_name; T_SHARP; ~ = signed_int; <>
-  | int_type_name; T_SHARP; ~ = binary_int; <>
-  | int_type_name; T_SHARP; ~ = octal_int; <>
-  | int_type_name; T_SHARP; ~ = hex_int; <>
+  // Only constants with type-prefix need to input a specific integer type for later inference
+  | ty = int_type_name; T_SHARP; (v, ti) = raw_signed_int;
+  { Syntax.CInteger(ti, Some ty, v) }
+  | ty = int_type_name; T_SHARP; (v, ti) = raw_binary_int;
+  { Syntax.CInteger(ti, Some ty, v) }
+  | ty = int_type_name; T_SHARP; (v, ti) = raw_octal_int;
+  { Syntax.CInteger(ti, Some ty, v) }
+  | ty = int_type_name; T_SHARP; (v, ti) = raw_hex_int;
+  { Syntax.CInteger(ti, Some ty, v) }
   | ~ = signed_int; <>
   | ~ = binary_int; <>
   | ~ = octal_int; <>
   | ~ = hex_int; <>
 
+let raw_unsigned_int :=
+  | vi = T_INTEGER; { vi }
+
+let raw_signed_int :=
+  | v = raw_unsigned_int; { v }
+  | T_PLUS; v = raw_unsigned_int; { v }
+  | T_MINUS; vi = T_INTEGER;
+  { vi }
+
+let raw_binary_int :=
+  | vi = T_BINARY_INTEGER;
+  { vi }
+
+let raw_octal_int :=
+  | vi = T_OCTAL_INTEGER;
+  { vi }
+
+let raw_hex_int :=
+  | vi = T_HEX_INTEGER;
+  { vi }
+
 let unsigned_int :=
   | vi = T_INTEGER;
   {
     let (v, ti) = vi in
-    Syntax.CInteger(ti, v)
+    Syntax.CInteger(ti, None, v)
   }
 
 let signed_int :=
-  | ~ = unsigned_int; <>
-  | T_PLUS; ~ = unsigned_int; <>
+  | ~ = unsigned_int; <> 
+  | T_PLUS; res = T_INTEGER;
+  {
+    let (v, ti) = res in
+    Syntax.CInteger(ti, None, v)
+  }
   | T_MINUS; res = T_INTEGER;
   {
     let (v, ti) = res in
-    Syntax.CInteger(ti, -v)
+    Syntax.CInteger(ti, None, -v)
   }
 
 let binary_int :=
   | vi = T_BINARY_INTEGER;
   {
     let (v, ti) = vi in
-    Syntax.CInteger(ti, v)
+    Syntax.CInteger(ti, None, v)
   }
 
 let octal_int :=
   | vi = T_OCTAL_INTEGER;
   {
     let (v, ti) = vi in
-    Syntax.CInteger(ti, v)
+    Syntax.CInteger(ti, None, v)
   }
 
 let hex_int :=
   | vi = T_HEX_INTEGER;
   {
     let (v, ti) = vi in
-    Syntax.CInteger(ti, v)
+    Syntax.CInteger(ti, None, v)
   }
 
 let real_literal :=
   (* With exponent *)
-  | real_type_name; T_SHARP; vr = T_REAL_VALUE;
-  { creal_mk vr }
-  | real_type_name; T_SHARP; T_PLUS; vr = T_REAL_VALUE;
-  { creal_mk vr }
-  | real_type_name; T_SHARP; T_MINUS; vr = T_REAL_VALUE;
-  { creal_mk (creal_inv vr) }
+  | ty = real_type_name; T_SHARP; vr = T_REAL_VALUE;
+  { creal_mk ~ty vr }
+  | ty = real_type_name; T_SHARP; T_PLUS; vr = T_REAL_VALUE;
+  { creal_mk ~ty vr }
+  | ty = real_type_name; T_SHARP; T_MINUS; vr = T_REAL_VALUE;
+  { creal_mk ~ty (creal_inv vr) }
   | vr = T_REAL_VALUE;
   { creal_mk vr }
   | T_PLUS; vr = T_REAL_VALUE;
@@ -393,12 +423,12 @@ let real_literal :=
   | T_MINUS; vr = T_REAL_VALUE;
   { creal_mk (creal_inv vr) }
   (* Conversion from fixed-point token *)
-  | real_type_name; T_SHARP; vr = T_FIX_POINT_VALUE;
-  { creal_mk (creal_conv_fp vr) }
-  | real_type_name; T_SHARP; T_PLUS; vr = T_FIX_POINT_VALUE;
-  { creal_mk (creal_conv_fp vr) }
-  | real_type_name; T_SHARP; T_MINUS; vr = T_FIX_POINT_VALUE;
-  { creal_mk (creal_inv (creal_conv_fp vr)) }
+  | ty = real_type_name; T_SHARP; vr = T_FIX_POINT_VALUE;
+  { creal_mk ~ty (creal_conv_fp vr) }
+  | ty = real_type_name; T_SHARP; T_PLUS; vr = T_FIX_POINT_VALUE;
+  { creal_mk ~ty (creal_conv_fp vr) }
+  | ty = real_type_name; T_SHARP; T_MINUS; vr = T_FIX_POINT_VALUE;
+  { creal_mk ~ty (creal_inv (creal_conv_fp vr)) }
   | vr = T_FIX_POINT_VALUE;
   { creal_mk (creal_conv_fp vr) }
   | T_PLUS; vr = T_FIX_POINT_VALUE;
@@ -408,13 +438,15 @@ let real_literal :=
 
 (* bit_str_literal: *)
 let bit_str_literal :=
-  | ty = multibits_type_name; T_SHARP; v = unsigned_int; { v }
-  | ty = multibits_type_name; T_SHARP; v = binary_int;   { v }
-  | ty = multibits_type_name; T_SHARP; v = octal_int;    { v }
-  | ty = multibits_type_name; T_SHARP; v = hex_int;      { v }
-  | v = binary_int; { v }
-  | v = octal_int;  { v }
-  | v = hex_int;    { v }
+  // Bit string literals with type-prefix need to input a specific integer type for later inference
+  | ty = multibits_type_name; T_SHARP; (v, ti) = raw_unsigned_int;
+    { Syntax.CBitString(ti, Some ty, v) }
+  | ty = multibits_type_name; T_SHARP; (v, ti) = raw_binary_int;
+    { Syntax.CBitString(ti, Some ty, v) }
+  | ty = multibits_type_name; T_SHARP; (v, ti) = raw_octal_int;
+    { Syntax.CBitString(ti, Some ty, v) }
+  | ty = multibits_type_name; T_SHARP; (v, ti) = raw_hex_int;
+    { Syntax.CBitString(ti, Some ty, v) }
 
 let bool_literal :=
   (* BOOL#<value> rules are implemented in lexer *)
@@ -660,7 +692,7 @@ let string_type_name :=
 (* Helper rule for [string_type_name] *)
 let string_type_length :=
   | T_LBRACK; c = unsigned_int; T_RBRACK;
-  { match c with | Syntax.CInteger(_, v) -> v | _ -> assert false }
+  { match c with | Syntax.CInteger(_, _, v) -> v | _ -> assert false }
 
 let time_type_name :=
   | T_TIME;  { Syntax.TIME }
@@ -962,14 +994,14 @@ let array_elem_init :=
   | mul_c = unsigned_int; T_LBRACE; inval = option(array_elem_init_value); T_RBRACE;
   {
     let mk_int_const (i: int) =
-      Syntax.CInteger((TI.create_dummy ()), i)
+      Syntax.CInteger((TI.create_dummy ()), None, i)
     in
     let (inval_list : 'a list) = match inval with
       | Some v -> [v]
       | None -> [mk_int_const 0]
     in
     let (mul : int) = match mul_c with
-      | Syntax.CInteger(_, v) -> v
+      | Syntax.CInteger(_, _, v) -> v
       | _ -> assert false
     in
     let build_list i n =
@@ -2121,7 +2153,7 @@ let for_list :=
   {
     (* According 7.3.3.4.2 default STEP value is 1. *)
     let dti = TI.create_dummy () in
-    (e1, e2, Syntax.ExprConstant(dti, Syntax.CInteger(dti, 1)))
+    (e1, e2, Syntax.ExprConstant(dti, Syntax.CInteger(dti, None, 1)))
   }
 
 let while_stmt :=
