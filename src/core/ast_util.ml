@@ -21,6 +21,41 @@ let expr_to_stmts expr : S.statement list =
   in
   aux expr
 
+(** 
+I add this function to collect the param statements in function calls, 
+excepting the function param names.
+Currently IEC-Checker has no ability to analyze with the function param info
+during the analysis which will conflict with the context where it calls the function. 
+For example:
+```
+VAR state : INT; END_VAR
+FuncCall( state := xxxx, out => xxxx)
+```
+In this case we can't know a variable named 'state' belongs to which field
+or context. Checker lib such as plcopen_cp25 will treat them as a same context, 
+which will lead to mistakes. 
+*)
+let collect_funccall_param_stmts 
+  (func_params : S.func_param_assign list) 
+  : S.statement list =
+  List.fold_left
+    func_params
+    ~init:[]
+    ~f:(fun acc fp -> 
+      let rhs = (match fp.name with
+        | None -> [ fp.stmt ]
+        | Some _ -> (match fp.stmt with
+          | S.StmExpr (_, assign_expr) -> (match assign_expr with
+            (* Here we only care about the target of the assignment *)
+            | S.ExprBin(_, _, _, expr_target) -> 
+              expr_to_stmts expr_target
+            | _ -> [])
+          | _ -> [])
+      )
+      in
+      acc @ rhs
+    )
+
 let rec stmts_to_list stmt =
   let get_nested stmts =
     List.fold_left
@@ -66,11 +101,12 @@ let rec stmts_to_list stmt =
   | S.StmContinue _ -> [ stmt ]
   | S.StmReturn _ -> [ stmt ]
   | S.StmFuncCall (_, _, func_params) -> begin
-      let func_params_stmts = List.fold_left
+      (* let func_params_stmts = List.fold_left
           func_params
           ~init:[]
           ~f:(fun acc fp -> acc @ [fp.stmt])
-      in
+      in *)
+      let func_params_stmts = collect_funccall_param_stmts func_params in
       [stmt] @ func_params_stmts
     end
   | S.StmEmpty _ -> [ stmt ]
