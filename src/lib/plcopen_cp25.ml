@@ -3,6 +3,7 @@ open IECCheckerCore
 
 module S = IECCheckerCore.Syntax
 module AU = IECCheckerCore.Ast_util
+module TI = IECCheckerCore.Tok_info
 
 (*
    TODO LIST FOR FUTURE IMPROVEMENTS:
@@ -494,14 +495,27 @@ let elem_ty_name_of_ty_spec_opt
 (* Map constant to elementary-type name when evident *)
 let elem_ty_name_of_constant (c : S.constant) : string option =
   match c with
-  | S.CInteger _ -> Some "INT"
-  | S.CReal _ -> Some "REAL"
+  | S.CInteger (_, ty, _) -> (
+    match ty with
+     | Some ty -> Some (elem_ty_name_of_elementary ty)
+     | None -> Some "USINT"
+  )
+  | CBitString (_, ty, _) -> (
+    match ty with
+     | Some ty -> Some (elem_ty_name_of_elementary ty)
+     | None -> Some "BYTE"
+  )
+  | S.CReal (_, ty, _) -> (
+    match ty with
+     | Some ty -> Some (elem_ty_name_of_elementary ty)
+     | None -> Some "REAL"
+  )
   | S.CString _ -> Some "STRING"
   | S.CBool _ -> Some "BOOL"
   | S.CTimeValue _ -> Some "TIME"
-  | S.CPointer _ -> None
+  | S.CPointer _ -> Some "POINTER"
   | S.CRange _ -> Some "INT"
-  | S.CEnumValue _ -> None
+  | S.CEnumValue _ -> Some "ENUM"
 
 (* Detect whether an expression is an explicit cast at the top-level by function naming.
    We treat function names containing "_TO_" as casts and return the target elementary name. *)
@@ -520,7 +534,7 @@ let parse_cast_from_function_name (fname : string) : string option =
       begin match t with
       | "INT" | "SINT" | "DINT" | "LINT" | "USINT" | "UINT" | "UDINT" | "ULINT" -> Some t
       | "REAL" | "LREAL" -> Some t
-      | "BOOL" -> Some "BOOL"
+      | "BOOL" -> Some t
       | "STRING" | "WSTRING" -> Some t
       | "TIME" | "LTIME" -> Some t
       | "BYTE" | "WORD" | "DWORD" | "LWORD" -> Some t
@@ -643,6 +657,23 @@ let is_top_level_cast (expr : S.expr) : bool =
      | _ -> false)
   | _ -> false
 
+(* (* Extract all variable names used in an expression (all ExprVariable nodes).
+   Skip over function calls (ExprFuncCall). *)
+let rec vars_in_expr (e : S.expr) : String.Set.t =
+  match e with
+  | S.ExprVariable (_, vu) -> String.Set.singleton (S.VarUse.get_name vu)
+  | S.ExprConstant _ -> String.Set.empty
+  | S.ExprBin (_, l, _, r) -> Set.union (vars_in_expr l) (vars_in_expr r)
+  | S.ExprUn (_, _, x) -> vars_in_expr x
+  | S.ExprFuncCall (_, _) -> String.Set.empty  (* Skip function calls as requested *)
+
+(* Print all variables used in an expression *)
+let print_vars_in_expr (e : S.expr) (ti : TI.t) : unit =
+  let var_set = vars_in_expr e in
+  Set.iter var_set ~f:(fun var_name -> 
+    Printf.printf "%d:%d Variable: %s\n" ti.linenr ti.col var_name) *)
+
+
 (* Recursively walk expression tree and collect warnings for implicit conversions.
    We warn when encountering a binary expression whose left and right operands both
    have known elementary types, these types differ, and neither operand is a
@@ -677,21 +708,14 @@ let rec check_expr_for_implicit_conv
            else
              let ti = S.expr_get_ti expr in
              let msg = Printf.sprintf
-                 "Data types conversion should be explicit. Implicit conversion detected between '%s' and '%s'."
+                 "Data types conversion should be explicit. Implicit conversion detected between '%s' to '%s'."
                  lt rt in
              let w = Warn.mk ti.linenr ti.col "PLCOPEN-CP25" msg in
              w :: acc2
          else acc2
        | _ -> acc2)
     | S.ExprUn (_ti, _op, e) -> check_expr_for_implicit_conv var_map acc e
-    | S.ExprFuncCall (_ti, stmt) ->
-      (* Dive into parameters inside StmFuncCall, they are func_param_assign list.
-         We attempt to inspect their stmt components. *)
-      (match stmt with
-       | S.StmFuncCall (_ti2, _f, params) ->
-         List.fold params ~init:acc ~f:(fun a p -> check_stmt_for_implicit_conv var_map a p.stmt)
-       | _ -> acc)
-    | S.ExprVariable _ | S.ExprConstant _ -> acc
+    | _ -> acc
   in
   acc
 
@@ -701,33 +725,7 @@ and check_stmt_for_implicit_conv
   (stmt : S.statement) : Warn.t list =
   match stmt with
   | S.StmExpr (_ti, expr) -> check_expr_for_implicit_conv var_map acc expr
-  | S.StmElsif (_ti, cond, body) ->
-    let acc1 = check_stmt_for_implicit_conv var_map acc cond in
-    List.fold body ~init:acc1 ~f:(check_stmt_for_implicit_conv var_map)
-  | S.StmIf (_ti, cond, body, elsif_stmts, else_body) ->
-    let acc1 = check_stmt_for_implicit_conv var_map acc cond in
-    let acc2 = List.fold body ~init:acc1 ~f:(check_stmt_for_implicit_conv var_map) in
-    let acc3 = List.fold elsif_stmts ~init:acc2 ~f:(fun a s -> check_stmt_for_implicit_conv var_map a s) in
-    List.fold else_body ~init:acc3 ~f:(check_stmt_for_implicit_conv var_map)
-  | S.StmCase (_ti, cond, cases, else_body) ->
-    let acc1 = check_stmt_for_implicit_conv var_map acc cond in
-    let acc2 = List.fold cases ~init:acc1 
-          ~f:(fun a cs -> List.fold cs.case ~init:a ~f:(check_stmt_for_implicit_conv var_map)) in
-    List.fold else_body ~init:acc2 ~f:(check_stmt_for_implicit_conv var_map)
-  | S.StmFor (_tif, fc, body) ->
-    let acc1 = check_stmt_for_implicit_conv var_map acc fc.assign in
-    let acc2 = check_expr_for_implicit_conv var_map acc1 fc.range_end in
-    let acc3 = check_expr_for_implicit_conv var_map acc2 fc.range_step in
-    List.fold body ~init:acc3 ~f:(check_stmt_for_implicit_conv var_map)
-  | S.StmWhile (_ti, cond, body) ->
-    let acc1 = check_stmt_for_implicit_conv var_map acc cond in
-    List.fold body ~init:acc1 ~f:(check_stmt_for_implicit_conv var_map)
-  | S.StmRepeat (_ti, body, cond) ->
-    let acc1 = List.fold body ~init:acc ~f:(check_stmt_for_implicit_conv var_map) in
-    check_stmt_for_implicit_conv var_map acc1 cond
-  | S.StmExit _ | S.StmContinue _ | S.StmReturn _ -> acc
-  | S.StmFuncCall (_ti, _f, params) ->
-    List.fold params ~init:acc ~f:(fun a p -> check_stmt_for_implicit_conv var_map a p.stmt)
+  | _ -> acc
 
 (** De-duplicate warning list based on to_string *)
 let dedup_warns_by_msg (warns : Warn.t list) : Warn.t list =
@@ -745,7 +743,6 @@ let dedup_warns_by_msg (warns : Warn.t list) : Warn.t list =
 let do_check (elems : S.iec_library_element list) : Warn.t list =
   (* Walk through all expressions/statements in each element and collect warnings.
      Build `var_map` per-POU to avoid cross-POU name collisions and incorrect mappings. *)
-  (* Printf.printf "Test oscat finding : %s\n" (parse_cast_from_function_name "UTC_TO_LTIME" |> Option.value ~default:"None"); *)
   let warns =
     List.fold elems ~init:[] ~f:(fun acc elem ->
         let var_map = build_var_type_map [elem] in
