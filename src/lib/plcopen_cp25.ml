@@ -734,4 +734,4 @@ let do_check (elems : S.iec_library_element list) : Warn.t list =
       let var_map = build_var_type_map [elem] in
       let stmts = AU.get_pou_stmts elem in
       List.fold stmts ~init:acc ~f:(check_stmt_for_implicit_conv var_map))
-  |> Warn.dedup_warns_by_msg
+  |> Warn.dedup_warns

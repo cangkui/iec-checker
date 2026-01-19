@@ -219,4 +219,4 @@ let do_check (elems : S.iec_library_element list) : W.t list =
     let var_time_map = build_var_time_map [elem] in
     let exprs = AU.get_pou_exprs elem in
     List.fold exprs ~init:acc ~f:(fun a e -> check_expr_for_eq_neq var_time_map e a))
-  |> Warn.dedup_warns_by_msg
+  |> Warn.dedup_warns

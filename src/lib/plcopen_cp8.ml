@@ -125,4 +125,4 @@ let do_check elems =
       let warns = check_elem elem in
       acc @ warns
     )
-  |> Warn.dedup_warns_by_msg
+  |> Warn.dedup_warns

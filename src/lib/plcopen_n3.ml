@@ -158,4 +158,4 @@ let process_elem acc elem =
 let do_check elems =
   elems
   |> List.fold ~init:[] ~f:(fun acc e -> process_elem acc e)
-  |> Warn.dedup_warns_by_msg
+  |> Warn.dedup_warns

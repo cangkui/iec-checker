@@ -20,4 +20,4 @@ let do_check elems =
   |> List.filter ~f:(fun w -> match w with Some _ -> true | None -> false)
   |> List.map ~f:(fun w ->
       match w with Some w -> w | None -> assert false)
-  |> Warn.dedup_warns_by_msg
+  |> Warn.dedup_warns

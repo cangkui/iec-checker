@@ -81,4 +81,4 @@ let find_unreachable_blocks (cfgs : Cfg.t list) : (Warn.t list) =
 let do_check (cfgs : Cfg.t list) (elems : S.iec_library_element list) : Warn.t list =
   (* List.iter cfgs ~f:(fun c -> Printf.printf "%s\n" (Cfg.to_string c)); *)
   (find_unreachable_blocks cfgs) @ (find_unreachable_conditional_blocks elems)
-  |> Warn.dedup_warns_by_msg
+  |> Warn.dedup_warns

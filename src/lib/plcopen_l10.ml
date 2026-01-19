@@ -12,4 +12,4 @@ let do_check elems =
           | S.StmContinue ti | S.StmExit ti -> acc @ [Warn.mk ti.linenr ti.col "PLCOPEN-L10" "Usage of CONTINUE and EXIT instruction should be avoid"]
           | _ -> acc
         end)
-  |> Warn.dedup_warns_by_msg
+  |> Warn.dedup_warns

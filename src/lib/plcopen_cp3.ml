@@ -582,5 +582,5 @@ let do_check (elems : S.iec_library_element list) : Warn.t list =
       in
       let stmts = AU.get_pou_stmts elem in
       let (_final_set, warns) = process_statements_list ~decl_map init_vars stmts in
-      Warn.dedup_warns_by_msg warns
+      Warn.dedup_warns warns
     )

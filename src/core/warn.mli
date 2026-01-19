@@ -19,4 +19,4 @@ val mk_from_lexbuf : Lexing.lexbuf -> string -> string -> t
 
 val to_string : t -> string
 (** De-duplicate warning list based on to_string *)
-val dedup_warns_by_msg : t list -> t list
+val dedup_warns : t list -> t list
