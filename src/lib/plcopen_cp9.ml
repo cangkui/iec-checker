@@ -32,4 +32,4 @@ let do_check elems cfgs =
     elems
     ~init:[]
     ~f:(fun acc elem -> acc @ (get_statements_num_violations elem))
-
+  |> Warn.dedup_warns_by_msg

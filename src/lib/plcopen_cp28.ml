@@ -212,26 +212,11 @@ let check_expr_for_eq_neq
   in
   aux expr acc
 
-(** De-duplicate warning list based on to_string *)
-let dedup_warns_by_msg (warns : Warn.t list) : Warn.t list =
-  (* Create a string hash table to record *)
-  let seen = String.Hash_set.create () in
-  List.filter warns ~f:(fun w ->
-    let k = Warn.to_string w in
-    if Hash_set.mem seen k then
-      false
-    else (
-      Hash_set.add seen k;
-      true
-    ))
-
 let do_check (elems : S.iec_library_element list) : W.t list =
   (* For each POU/element, get expressions and examine them *)
-  let warnings =
-    List.fold elems ~init:[] ~f:(fun acc elem ->
-      (* Build helper maps *)
-      let var_time_map = build_var_time_map [elem] in
-      let exprs = AU.get_pou_exprs elem in
-      List.fold exprs ~init:acc ~f:(fun a e -> check_expr_for_eq_neq var_time_map e a))
-  in
-  warnings |> dedup_warns_by_msg
+  List.fold elems ~init:[] ~f:(fun acc elem ->
+    (* Build helper maps *)
+    let var_time_map = build_var_time_map [elem] in
+    let exprs = AU.get_pou_exprs elem in
+    List.fold exprs ~init:acc ~f:(fun a e -> check_expr_for_eq_neq var_time_map e a))
+  |> Warn.dedup_warns_by_msg

@@ -117,19 +117,6 @@ let check_elem (elem : S.iec_library_element) : W.t list =
           | _ -> acc
         end)
 
-(** De-duplicate warning list based on to_string *)
-let dedup_warns_by_msg (warns : Warn.t list) : Warn.t list =
-  (* Create a string hash table to record *)
-  let seen = String.Hash_set.create () in
-  List.filter warns ~f:(fun w ->
-    let k = Warn.to_string w in
-    if Hash_set.mem seen k then
-      false
-    else (
-      Hash_set.add seen k;
-      true
-    ))
-
 let do_check elems =
   List.fold_left
     ~init:[]
@@ -138,4 +125,4 @@ let do_check elems =
       let warns = check_elem elem in
       acc @ warns
     )
-  |> dedup_warns_by_msg
+  |> Warn.dedup_warns_by_msg

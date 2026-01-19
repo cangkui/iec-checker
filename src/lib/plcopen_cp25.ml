@@ -727,26 +727,11 @@ and check_stmt_for_implicit_conv
   | S.StmExpr (_ti, expr) -> check_expr_for_implicit_conv var_map acc expr
   | _ -> acc
 
-(** De-duplicate warning list based on to_string *)
-let dedup_warns_by_msg (warns : Warn.t list) : Warn.t list =
-  (* Create a string hash table to record *)
-  let seen = String.Hash_set.create () in
-  List.filter warns ~f:(fun w ->
-    let k = Warn.to_string w in
-    if Hash_set.mem seen k then
-      false
-    else (
-      Hash_set.add seen k;
-      true
-    ))
-
 let do_check (elems : S.iec_library_element list) : Warn.t list =
   (* Walk through all expressions/statements in each element and collect warnings.
      Build `var_map` per-POU to avoid cross-POU name collisions and incorrect mappings. *)
-  let warns =
-    List.fold elems ~init:[] ~f:(fun acc elem ->
-        let var_map = build_var_type_map [elem] in
-        let stmts = AU.get_pou_stmts elem in
-        List.fold stmts ~init:acc ~f:(check_stmt_for_implicit_conv var_map))
-  in
-  dedup_warns_by_msg warns
+  List.fold elems ~init:[] ~f:(fun acc elem ->
+      let var_map = build_var_type_map [elem] in
+      let stmts = AU.get_pou_stmts elem in
+      List.fold stmts ~init:acc ~f:(check_stmt_for_implicit_conv var_map))
+  |> Warn.dedup_warns_by_msg

@@ -1,3 +1,5 @@
+open Core
+
 type warn_ty =
   | Inspection
   | InternalError
@@ -23,3 +25,15 @@ let to_string w =
   | Inspection -> Printf.sprintf "%d:%d %s: %s" w.linenr w.column w.id w.msg
   | InternalError -> Printf.sprintf "%s: %s" w.id w.msg
 
+(** De-duplicate warning list based on to_string *)
+let dedup_warns_by_msg warns =
+  (* Create a string hash table to record *)
+  let seen = String.Hash_set.create () in
+  List.filter warns ~f:(fun w ->
+    let k = to_string w in
+    if Hash_set.mem seen k then
+      false
+    else (
+      Hash_set.add seen k;
+      true
+    ))

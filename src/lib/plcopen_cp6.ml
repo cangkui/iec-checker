@@ -26,3 +26,4 @@ let check_elem elem =
 
 let do_check elems =
   List.fold_left elems ~init:[] ~f:(fun acc elem -> acc @ (check_elem elem))
+  |> Warn.dedup_warns_by_msg

@@ -563,19 +563,6 @@ let process_statements_list ~decl_map (init_set : String.Set.t) (stmts : S.state
       (iset', warns @ w)
     )
 
-(** De-duplicate warning list based on to_string *)
-let dedup_warns_by_msg (warns : Warn.t list) : Warn.t list =
-  (* Create a string hash table to record *)
-  let seen = String.Hash_set.create () in
-  List.filter warns ~f:(fun w ->
-    let k = Warn.to_string w in
-    if Hash_set.mem seen k then
-      false
-    else (
-      Hash_set.add seen k;
-      true
-    ))
-
 let do_check (elems : S.iec_library_element list) : Warn.t list =
   (* Build global declaration map to know which vars have initializers or are inputs/retain *)
   let decl_map = build_var_decl_map elems in
@@ -595,5 +582,5 @@ let do_check (elems : S.iec_library_element list) : Warn.t list =
       in
       let stmts = AU.get_pou_stmts elem in
       let (_final_set, warns) = process_statements_list ~decl_map init_vars stmts in
-      dedup_warns_by_msg warns
+      Warn.dedup_warns_by_msg warns
     )

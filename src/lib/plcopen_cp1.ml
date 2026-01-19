@@ -110,4 +110,4 @@ let do_check elems =
         acc @ (check_elem elem))
   in
   (* Printf.printf "do_check: Check completed, %d total warnings\n" (List.length result); *)
-  result
+  result |> Warn.dedup_warns_by_msg
