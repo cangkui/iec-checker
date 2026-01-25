@@ -350,22 +350,22 @@ let raw_unsigned_int :=
   | vi = T_INTEGER; { vi }
 
 let raw_signed_int :=
-  | v = raw_unsigned_int; { v }
-  | T_PLUS; v = raw_unsigned_int; { v }
+  | vi = raw_unsigned_int; { vi }
+  | T_PLUS; vi = raw_unsigned_int; { vi }
   | T_MINUS; vi = T_INTEGER;
-  { vi }
+  {
+    let (v, ti) = vi in
+    (-v, ti)
+  }
 
 let raw_binary_int :=
-  | vi = T_BINARY_INTEGER;
-  { vi }
+  | vi = T_BINARY_INTEGER; { vi }
 
 let raw_octal_int :=
-  | vi = T_OCTAL_INTEGER;
-  { vi }
+  | vi = T_OCTAL_INTEGER; { vi }
 
 let raw_hex_int :=
-  | vi = T_HEX_INTEGER;
-  { vi }
+  | vi = T_HEX_INTEGER; { vi }
 
 let unsigned_int :=
   | vi = T_INTEGER;
