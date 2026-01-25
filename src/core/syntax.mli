@@ -331,10 +331,12 @@ and ref_value =
 [@@deriving to_yojson]
 
 and constant =
+  (* Integers: SINT, INT, DINT, LINT, USINT, UINT, UDINT, ULINT *)
   | CInteger of TI.t * elementary_ty option * int    [@name "Integer"]
+  (* Bit Strings: BOOL, BYTE, WORD, DWORD, LWORD *)
   | CBitString of TI.t * elementary_ty option * int  [@name "BitString"]
+  (* Reals: REAL, LREAL *)
   | CReal of TI.t * elementary_ty option * float     [@name "Real"]
-  (* | CReal of TI.t * float            [@name "Real"] *)
   | CBool of TI.t * bool             [@name "Bool"]
   | CString of TI.t * string         [@name "String"]
   | CPointer of TI.t * ref_value     [@name "Pointer"]
