@@ -31,34 +31,44 @@ SRC_LIB_DIR = PROJECT_ROOT / "src" / "lib"
 name_locks = {}
 name_locks_lock = Lock()
 
+# Define route handlers mapping
+ROUTE_HANDLERS = {}
+
+
+def register_handler(method, path, handler):
+    """Register a handler function for a given method and path."""
+    key = f"{method.upper()}:{path}"
+    ROUTE_HANDLERS[key] = handler
+    print(f"Registered route: {key}")
+
 
 def get_name_lock(name: str) -> Lock:
-	with name_locks_lock:
-		if name not in name_locks:
-			name_locks[name] = Lock()
-		return name_locks[name]
+    with name_locks_lock:
+        if name not in name_locks:
+            name_locks[name] = Lock()
+        return name_locks[name]
 
 
 def safe_name(name: str) -> bool:
-	# allow only letters, digits and underscore and hyphen; no path separators
-	return bool(re.fullmatch(r"[A-Za-z0-9_\-]+", name))
+    # allow only letters, digits and underscore and hyphen; no path separators
+    return bool(re.fullmatch(r"[A-Za-z0-9_\-]+", name))
 
 
 def atomic_write(path: Path, data: str) -> None:
-	path.parent.mkdir(parents=True, exist_ok=True)
-	# write to temp file then replace
-	fd, tmp = tempfile.mkstemp(dir=str(path.parent))
-	try:
-		with os.fdopen(fd, "w", encoding="utf-8") as f:
-			f.write(data)
-		# atomic replace
-		shutil.move(tmp, path)
-	finally:
-		if os.path.exists(tmp):
-			try:
-				os.remove(tmp)
-			except Exception:
-				pass
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # write to temp file then replace
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(data)
+        # atomic replace
+        shutil.move(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
 
 def remove_file(path: Path) -> None:
     try:
@@ -68,105 +78,208 @@ def remove_file(path: Path) -> None:
         pass
 
 
+def handle_compile_endpoint(handler, payload):
+    """Handle the compile endpoint logic."""
+    name = payload.get("name")
+    mli = payload.get("mli")
+    ml = payload.get("ml")
+
+    if not (isinstance(name, str) and isinstance(mli, str) and isinstance(ml, str)):
+        return 400, {"error": "fields 'name','mli','ml' must be strings"}
+
+    if not safe_name(name):
+        return 400, {"error": "invalid name; allowed: A-Z a-z 0-9 _ -"}
+
+    # Acquire per-name lock while writing and building to avoid clobbering
+    lock = get_name_lock(name)
+    with lock:
+        try:
+            mli_path = SRC_LIB_DIR / f"{name}.mli"
+            ml_path = SRC_LIB_DIR / f"{name}.ml"
+
+            atomic_write(mli_path, mli)
+            atomic_write(ml_path, ml)
+
+            # run make build in project root
+            proc = subprocess.run(
+                ["make", "build"],
+                cwd=str(PROJECT_ROOT),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            combined = proc.stdout + ("\n" + proc.stderr if proc.stderr else "")
+            filtered_lines = [
+                line for line in combined.strip().splitlines()
+            ][1:]
+            out_text = "\n".join(filtered_lines).strip()
+            remove_file(mli_path)
+            remove_file(ml_path)
+
+            result = {
+                "returncode": proc.returncode,
+                "output": out_text,
+            }
+            return 200, result
+        except Exception as e:
+            return 500, {"error": str(e)}
+
+def handle_run_checker_endpoint(handler, payload):
+    """Handle the endpoint logic for running the iec-checker binary."""
+    iec_checker_path = Path(__file__).resolve().parent
+    content = payload.get("content", "")
+    checker_type = payload.get("checker_type", "")
+    checker_file = "iec_checker_safeplc.exe" if checker_type == "safeplc" else "iec_checker"
+    print(f"Running iec-checker: {checker_file}")
+
+    def compile(code: str):
+        """
+        调用IEC-Checker编译后的二进制文件对输入的ST代码进行检查，返回检查结果字符串。
+        """
+        binary_path = iec_checker_path / "bin" / checker_file
+        tmp_test_file_path = iec_checker_path / "tmp" / "test.st"
+        with open(tmp_test_file_path, 'w', encoding='utf-8') as f:
+            f.write(code)
+        
+        output = "Unknown Error"
+        try:
+            result = subprocess.run(
+                [binary_path, str(tmp_test_file_path)], 
+                cwd=str(iec_checker_path),
+                capture_output=True,
+                text=True
+            )
+            output = result.stdout
+            if result.returncode != 0:
+                raise Exception(f"Build failed: {result.stderr}")
+        except Exception as e:
+            raise e
+        finally:
+            if tmp_test_file_path.exists():
+                tmp_test_file_path.unlink()
+        
+        return output
+
+    return 200, {"output": compile(content)}
+
+
+def handle_run_checker_json_endpoint(handler, payload):
+    """Handle the endpoint logic for running the iec-checker binary."""
+    iec_checker_path = Path(__file__).resolve().parent
+    content = payload.get("content", "")
+    checker_type = payload.get("checker_type", "")
+    checker_file = "iec_checker_safeplc.exe" if checker_type == "safeplc" else "iec_checker"
+    print(f"Running iec-checker json: {checker_file}")
+
+    def compile(code: str):
+        """
+        调用IEC-Checker编译后的二进制文件对输入的ST代码进行检查，返回检查结果字符串。
+        """
+        binary_path = iec_checker_path / "bin" / checker_file
+        tmp_test_file_path = iec_checker_path / "tmp" / "test.st"
+        with open(tmp_test_file_path, 'w', encoding='utf-8') as f:
+            f.write(code)
+        
+        output = "Unknown Error"
+        try:
+            result = subprocess.run(
+                [binary_path, "-o", "json", str(tmp_test_file_path)], 
+                cwd=str(iec_checker_path),
+                capture_output=True,
+                text=True
+            )
+            output = result.stdout
+            if result.returncode != 0:
+                raise Exception(f"Build failed: {result.stderr}")
+        except Exception as e:
+            raise e
+        finally:
+            if tmp_test_file_path.exists():
+                tmp_test_file_path.unlink()
+        
+        return json.loads(output)
+
+    return 200, {"output": compile(content)}
+
+
 class Handler(BaseHTTPRequestHandler):
-	server_version = "IEC-Compile-Server/0.1"
+    server_version = "IEC-Compile-Server/0.1"
 
-	def _send_json(self, code: int, obj):
-		data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
-		self.send_response(code)
-		self.send_header("Content-Type", "application/json; charset=utf-8")
-		self.send_header("Content-Length", str(len(data)))
-		self.end_headers()
-		self.wfile.write(data)
+    def _send_json(self, code: int, obj):
+        data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
-	def do_GET(self):
-		if self.path == "/health":
-			self._send_json(200, {"status": "ok"})
-		else:
-			self._send_json(404, {"error": "not found"})
+    def do_GET(self):
+        if self.path == "/health":
+            self._send_json(200, {"status": "ok"})
+        else:
+            self._send_json(404, {"error": "not found"})
 
-	def do_POST(self):
-		if self.path != "/compile":
-			self._send_json(404, {"error": "not found"})
-			return
+    def do_POST(self):
+        # Dispatch request to the appropriate handler
+        key = f"POST:{self.path}"
+        if key in ROUTE_HANDLERS:
+            handler_func = ROUTE_HANDLERS[key]
+            
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length <= 0:
+                self._send_json(400, {"error": "empty body"})
+                return
 
-		content_length = int(self.headers.get("Content-Length", 0))
-		if content_length <= 0:
-			self._send_json(400, {"error": "empty body"})
-			return
+            body = self.rfile.read(content_length)
+            try:
+                payload = json.loads(body.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"error": "invalid json"})
+                return
 
-		body = self.rfile.read(content_length)
-		try:
-			payload = json.loads(body.decode("utf-8"))
-		except Exception:
-			self._send_json(400, {"error": "invalid json"})
-			return
-
-		name = payload.get("name")
-		mli = payload.get("mli")
-		ml = payload.get("ml")
-
-		if not (isinstance(name, str) and isinstance(mli, str) and isinstance(ml, str)):
-			self._send_json(400, {"error": "fields 'name','mli','ml' must be strings"})
-			return
-
-		if not safe_name(name):
-			self._send_json(400, {"error": "invalid name; allowed: A-Z a-z 0-9 _ -"})
-			return
-
-		# Acquire per-name lock while writing and building to avoid clobbering
-		lock = get_name_lock(name)
-		with lock:
-			try:
-				mli_path = SRC_LIB_DIR / f"{name}.mli"
-				ml_path = SRC_LIB_DIR / f"{name}.ml"
-
-				atomic_write(mli_path, mli)
-				atomic_write(ml_path, ml)
-
-				# run make build in project root
-				proc = subprocess.run(
-					["make", "build"],
-					cwd=str(PROJECT_ROOT),
-					stdout=subprocess.PIPE,
-					stderr=subprocess.PIPE,
-					text=True,
-				)
-
-				combined = proc.stdout + ("\n" + proc.stderr if proc.stderr else "")
-				filtered_lines = [
-					line for line in combined.strip().splitlines()
-				][1:]
-				out_text = "\n".join(filtered_lines).strip()
-				remove_file(mli_path)
-				remove_file(ml_path)
-
-				result = {
-					"returncode": proc.returncode,
-					"output": out_text,
-				}
-				self._send_json(200, result)
-			except Exception as e:
-				self._send_json(500, {"error": str(e)})
+            try:
+                result = handler_func(self, payload)
+                
+                # Ensure the handler returns exactly 2 values
+                if isinstance(result, tuple) and len(result) == 2:
+                    status_code, response_data = result
+                else:
+                    # Log the issue and return a server error
+                    print(f"Warning: Handler for {key} did not return a tuple of (status_code, response_data)")
+                    print(f"Actual result: {result}")
+                    self._send_json(500, {"error": "Internal server error in handler"})
+                    return
+                    
+                self._send_json(status_code, response_data)
+            except Exception as e:
+                # Catch any exception in the handler and return an error
+                print(f"Error in handler for {key}: {str(e)}")
+                self._send_json(500, {"error": "Internal server error"})
+        else:
+            self._send_json(404, {"error": "not found"})
 
 
 def run(addr: str = "0.0.0.0", port: int = 8000):
-	server = ThreadingHTTPServer((addr, port), Handler)
-	print(f"Serving on {addr}:{port} (project root: {PROJECT_ROOT})")
-	try:
-		server.serve_forever()
-	except KeyboardInterrupt:
-		print("Shutting down")
-		server.shutdown()
+    # Register the default compile endpoint
+    register_handler("POST", "/compile", handle_compile_endpoint)
+    register_handler("POST", "/run_checker", handle_run_checker_endpoint)
+    register_handler("POST", "/run_checker_json", handle_run_checker_json_endpoint)
+    server = ThreadingHTTPServer((addr, port), Handler)
+    print(f"Serving on {addr}:{port} (project root: {PROJECT_ROOT})")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("Shutting down")
+        server.shutdown()
 
 
 if __name__ == "__main__":
-	# allow optional port arg
-	p = 8000
-	if len(sys.argv) >= 2:
-		try:
-			p = int(sys.argv[1])
-		except Exception:
-			pass
-	run(port=p)
-
+    # allow optional port arg
+    p = 8000
+    if len(sys.argv) >= 2:
+        try:
+            p = int(sys.argv[1])
+        except Exception:
+            pass
+    run(port=p)
