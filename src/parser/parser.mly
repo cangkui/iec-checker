@@ -693,6 +693,8 @@ let string_type_name :=
 let string_type_length :=
   | T_LBRACK; c = unsigned_int; T_RBRACK;
   { match c with | Syntax.CInteger(_, _, v) -> v | _ -> assert false }
+  | T_LPAREN; c = unsigned_int; T_RPAREN;
+  { match c with | Syntax.CInteger(_, _, v) -> v | _ -> assert false }
 
 let time_type_name :=
   | T_TIME;  { Syntax.TIME }
