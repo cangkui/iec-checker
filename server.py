@@ -26,6 +26,37 @@ from threading import Lock
 # Root of the project (assume this file is at project root)
 PROJECT_ROOT = Path(__file__).resolve().parent
 SRC_LIB_DIR = PROJECT_ROOT / "src" / "lib"
+DEFAULT_CHECKERLIB_CONTENT = """
+open Core
+module S = IECCheckerCore.Syntax
+module Env = IECCheckerCore.Env
+module TI = IECCheckerCore.Tok_info
+module Config = IECCheckerCore.Config
+
+let print_element (e : S.iec_library_element) =
+  match e with
+  | S.IECFunction (_, f) ->
+    Printf.printf "Running check for function %s\\n" (S.Function.get_name f.id)
+  | S.IECFunctionBlock (_, fb) ->
+    Printf.printf "Running check for function block %s\\n"
+      (S.FunctionBlock.get_name fb.id)
+  | S.IECProgram (_, p) -> Printf.printf "Running check for program %s\\n" p.name
+  | S.IECClass (_, c) -> Printf.printf "Running check for class %s\\n" c.class_name
+  | S.IECInterface (_, i) -> Printf.printf "Running check for interafece %s\\n" i.interface_name
+  | S.IECConfiguration (_, c) ->
+    Printf.printf "Running check for configuration %s\\n" c.name
+  | S.IECType _ ->
+    Printf.printf "Running check for derived type\\n"
+
+let run_all_checks elements envs cfgs quiet =
+  if not quiet then
+    List.iter elements ~f:(fun e -> print_element e);
+  []
+  (* [[[SAFEPLC_INSERT_POINT]]] *)
+"""
+# 备份原始checkerLib.ml文件，用于后续恢复
+CHECKER_LIB = SRC_LIB_DIR / "checkerLib.ml"
+CHECKER_LIB_BAK = SRC_LIB_DIR / "checkerLib.ml.backup"
 
 # Keep a lock per module name to avoid race when two requests write same files
 name_locks = {}
@@ -77,12 +108,82 @@ def remove_file(path: Path) -> None:
     except Exception:
         pass
 
+def integrate(mli_path: Path):
+    """
+    1. 把生成的检测器代码放入IEC-Checker项目(根目录位于：/data0/iec-checker-test/iec-checker)的src/lib目录下，并且修改src/lib下的checkerLib.ml模块使其调用检测器的do_check，主要是在run_all_checks函数尾部增加。
+
+    2. 执行IEC-Checker项目根目录下的docker_build.sh脚本以重新编译IEC-Checker。
+    """
+    
+    # 从路径中提取检测器模块名称
+    detector_module_name = mli_path.stem
+    # 第一个字母大写
+    detector_module_name = detector_module_name[0].upper() + detector_module_name[1:]
+    
+    try:
+        # 备份原checkerLib.ml文件
+        if CHECKER_LIB_BAK.exists():
+            # 如果备份已存在，先恢复它（防止上次操作失败）
+            shutil.copy(CHECKER_LIB_BAK, CHECKER_LIB)
+        else:
+            # 创建新备份
+            shutil.copy(CHECKER_LIB, CHECKER_LIB_BAK)
+        
+        # 读取checkerLib.ml内容并修改
+        with open(CHECKER_LIB, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 在特定标记处插入新的检测器调用
+        insertion_point = "(* [[[SAFEPLC_INSERT_POINT]]] *)"
+        new_detector_call = f"|> List.append ({detector_module_name}.do_check elements)\n  {insertion_point}"
+        
+        # 替换插入点标记
+        updated_content = content.replace(insertion_point, new_detector_call)
+        
+        # 写回修改后的内容
+        with open(CHECKER_LIB, 'w', encoding='utf-8') as f:
+            f.write(updated_content)
+        
+    except Exception as e:
+        # 发生错误时恢复原checkerLib.ml文件
+        print(f"Error occurred: {e}")
+        if CHECKER_LIB_BAK.exists():
+            shutil.copy(CHECKER_LIB_BAK, CHECKER_LIB)
+        else:
+            with open(CHECKER_LIB, 'w', encoding='utf-8') as f:
+                f.write(DEFAULT_CHECKERLIB_CONTENT)
+        raise e
+
+def unintegrate():
+    if CHECKER_LIB.exists():
+        CHECKER_LIB.unlink()
+    # 删除临时备份文件
+    if CHECKER_LIB_BAK.exists():
+        shutil.copy(CHECKER_LIB_BAK, CHECKER_LIB)
+        CHECKER_LIB_BAK.unlink()
+    else:
+        with open(CHECKER_LIB, 'w', encoding='utf-8') as f:
+            f.write(DEFAULT_CHECKERLIB_CONTENT)
+
+def reset_build():
+    result = subprocess.run(
+        ["make", "build"],
+        cwd=str(PROJECT_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Build failed: {result.stderr}")
+        raise Exception(f"Build failed: {result.stderr}")
+
 
 def handle_compile_endpoint(handler, payload):
     """Handle the compile endpoint logic."""
     name = payload.get("name")
     mli = payload.get("mli")
     ml = payload.get("ml")
+    is_integrate = payload.get("integrate", False)
 
     if not (isinstance(name, str) and isinstance(mli, str) and isinstance(ml, str)):
         return 400, {"error": "fields 'name','mli','ml' must be strings"}
@@ -100,6 +201,9 @@ def handle_compile_endpoint(handler, payload):
             atomic_write(mli_path, mli)
             atomic_write(ml_path, ml)
 
+            if is_integrate:
+                integrate(mli_path)
+
             # run make build in project root
             proc = subprocess.run(
                 ["make", "build"],
@@ -108,6 +212,9 @@ def handle_compile_endpoint(handler, payload):
                 stderr=subprocess.PIPE,
                 text=True,
             )
+
+            if is_integrate:
+                unintegrate()
 
             combined = proc.stdout + ("\n" + proc.stderr if proc.stderr else "")
             filtered_lines = [
@@ -203,6 +310,15 @@ def handle_run_checker_json_endpoint(handler, payload):
     return 200, {"output": compile(content)}
 
 
+def handle_reset_endpoint(handler, payload):
+    """Handle the endpoint logic for resetting the build state."""
+    try:
+        reset_build()
+        return 200, {"status": "build reset successfully"}
+    except Exception as e:
+        return 500, {"error": str(e)} 
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "IEC-Compile-Server/0.1"
 
@@ -227,11 +343,10 @@ class Handler(BaseHTTPRequestHandler):
             handler_func = ROUTE_HANDLERS[key]
             
             content_length = int(self.headers.get("Content-Length", 0))
-            if content_length <= 0:
-                self._send_json(400, {"error": "empty body"})
-                return
 
             body = self.rfile.read(content_length)
+            if not body:
+                body = b"{}"  # default to empty JSON object
             try:
                 payload = json.loads(body.decode("utf-8"))
             except Exception:
@@ -265,6 +380,7 @@ def run(addr: str = "0.0.0.0", port: int = 8000):
     register_handler("POST", "/compile", handle_compile_endpoint)
     register_handler("POST", "/run_checker", handle_run_checker_endpoint)
     register_handler("POST", "/run_checker_json", handle_run_checker_json_endpoint)
+    register_handler("POST", "/reset", handle_reset_endpoint)
     server = ThreadingHTTPServer((addr, port), Handler)
     print(f"Serving on {addr}:{port} (project root: {PROJECT_ROOT})")
     try:
